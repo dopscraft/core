@@ -1,0 +1,243 @@
+--[[
+========================
+Addressing Layer Protocol
+Uses channel 2906.
+Each computer is given an address.
+Packets are marked with the address they came from
+and the address they're directed at.
+
+Usage:
+  Loading the API initializes the system,
+  loading data from the configuration file at
+  /config/alp.cfg
+  {
+    -- The computer's own address is specified as
+    -- follows. It is 4 digit hexadecimal.
+    -- If not specified, one will be made up.
+    -- Addresses starting zero are considered local
+    -- and not to be routed.
+    address = "f123"
+    
+    -- Routing config hasn't been decided.
+  }
+  
+alp.getAddress()
+  Returns the computer's address as configured.
+  
+alp.send(address, protocol, data)
+  Sends the data to the given address.
+  Address 0000 broadcasts to all computers on the
+  same interface. ffff broadcasts to all
+  computers.
+  The protocol is a string used for filtering.
+  The data can be anything.
+
+-- We use event callbacks to host.
+-- They use a common event handler that can
+-- register other callbacks for other things.
+function myHandler(src, dst, protocol, data)
+  blah blah
+end
+-- One handler to one protocol.
+-- The last parameter specifies whether or not
+-- to advertise the listening as a host to any
+-- who poll for it.
+alp.listen("someprot", myHandler, true)
+while true do
+  -- We can still get whatever raw data we want
+  -- from os.pullEvent() via this method.
+  event.pull()
+end
+alp.unlisten("someprot")
+
+-- Finally, we can poll for hosted services.
+-- The boolean parameter is whether to block and
+-- return the list of services. If false, the
+-- program must listen for "alp.poll.r"
+alp.poll(true)
+-- If blocking, then it returns a table e.g.:
+{
+  "add0" = { "protocol1", "protocol2" },
+  "add2" = { "protocol3" }
+}
+==========================
+--]]
+
+loader.loadAPI("events")
+
+local init = false
+local config = {} -- the config file
+local modems = {} -- list of modem interfaces
+local listening = {} -- map protocol to callback
+local hosting = {} -- protocols being hosted, as keys
+local addressSide = {} -- used to limit routing
+
+function _init()
+  if init then
+    return
+  end
+  init = true
+  local filename = "/config/alp.cfg"
+  if fs.exists(filename) then
+    file = fs.open(filename, "r")
+    if file then
+      config = textutils.unserialize(file.readAll())
+      file.close()
+    end
+  end
+  if not config.address then
+    -- Make up an address.
+    config.address = tostring(os.getComputerID())
+    local pad = math.max(1, 4 - string.len(config.address))
+    config.address = string.rep("0", pad) .. config.address
+  end
+  modems = { peripheral.find("modem") }
+end
+_init()
+
+function getAddress()
+  return config.address
+end
+
+function send(address, protocol, data)
+  _send(config.address, address, protocol, data)
+end
+
+function _send(src, dst, protocol, data, routing)
+  local packet = {
+    alp = "1",
+    src = src,
+    dst = dst,
+    protocol = protocol,
+    data = data,
+    routing = routing
+  }
+  packet = textutils.serialize(packet)
+  if address == config.address then
+    _listenHandler("inside", 2906, 2906, packet, 0)
+    return
+  end
+  for k,modem in pairs(modems) do
+     modem.transmit(2906, 2906, packet)
+  end
+end
+
+-- returns false if we're already hosting that
+-- protocol
+function listen(protocol, handler, ishost)
+  if listening[protocol] then
+    return false
+  end
+  if next(listening) == nil then
+    _openModems()
+    events.register("modem_message", _listenHandler)
+  end
+  listening[protocol] = handler
+  if ishost then
+    hosting[protocol] = true
+  end
+  return true
+end
+
+function unlisten(protocol)
+  listening[protocol] = nil
+  hosting[protocol] = nil
+  if next(listening) == nil then
+    _closeModems()
+    events.unregister("modem_message", _listenHandler)
+  end
+end
+
+function poll(blocking, wait)
+  send("ffff", "alp.poll", {})
+  if blocking then
+    local hosts = {}
+    local timer = os.startTimer(wait or 2)
+    listen("alp.poll.r", _dummyHandler)
+    while true do
+      evt, src, dst, protocol, data = events.pull()
+      if evt == "timer" then
+        break
+      end
+      if evt == "alp_packet"
+        and protocol == "alp.poll.r"
+        and dst == config.address
+        then
+        hosts[src] = {}
+        for k,v in pairs(data) do
+          table.insert(hosts[src], k)
+        end
+      end
+    end
+    unlisten("alp.poll.r")
+    return hosts
+  end
+end
+
+function _listenHandler(side, freq, rfreq, msg, dist)
+  if type(msg) ~= "string" then
+    return
+  end
+  local packet = textutils.unserialize(msg)
+  if type(packet) ~= "table"
+    or not packet.alp
+    or not packet.src
+    or not packet.dst
+    or not packet.protocol
+    or not packet.data
+    then
+    return
+  end
+  if packet.alp ~= "1" then
+    return
+  end
+  -- Routing.
+  if config.routing then
+    addressSide[packet.src] = side
+    if addressSide[packet.dst]
+      and addressSide[packet.dst] ~= side
+      then
+      routing = packet.routing
+      if not routing then
+        routing = {}
+      end
+      -- Only route if we haven't routed it before
+      if not routing[config.address] then
+        routing[config.address] = #routing
+        _send(packet.src, packet.dst, packet.protocol, packet.data, routing)
+      end
+    end
+  end
+  -- Acept valid addresses.
+  if packet.dst ~= config.address
+    and packet.dst ~= "0000"
+    and packet.dst ~= "ffff"
+    then
+    return
+  end
+  -- Automatically handle service polling.
+  if packet.protocol == "alp.poll" then
+    send(packet.src, "alp.poll.r", hosting)
+    return
+  end
+  -- Pass any other packets to the callback.
+  if listening[packet.protocol] then
+    listening[packet.protocol](packet.src, packet.dst, packet.protocol, packet.data)
+    os.queueEvent("alp_packet", packet.src, packet.dst, packet.protocol, packet.data)
+  end
+end
+
+function _openModems()
+  for k,modem in pairs(modems) do
+    modem.open(2906)
+  end
+end
+
+function _closeModems()
+  for k,modem in pairs(modems) do
+    modem.close(2906)
+  end
+end
+
+function _dummyHandler()
+end

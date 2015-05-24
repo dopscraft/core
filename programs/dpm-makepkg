@@ -1,0 +1,37 @@
+--[[
+Takes a root folder and makes it into a package.
+]]
+
+loader.loadAPI("dpm", true)
+
+args = { ... }
+
+-- Recursively finds all directories in the given
+-- folder, adding them to the table.
+function findDirs(folder, output)
+end
+
+function run()
+  if not args[1] then
+    print("dpm-makepkg <folder>")
+    print("makes a package of the specified folder")
+    print("outputs <folder>.pkg")
+    print("it must be a root folder")
+    return
+  end
+  local package = dpm.makePackage(args[1], true)
+  if package == false then
+    print("unable to make package")
+    return
+  end
+  local filename = args[1] .. ".pkg"
+  local file = fs.open(filename, "w")
+  if not file then
+    print("unable to create file " .. filename)
+    return
+  end
+  file.write(textutils.serialize(package))
+  file.close()
+  print("created package " .. filename)
+end
+run()

@@ -1,0 +1,10 @@
+args = { ... }
+
+function run()
+  if not args[1] then
+    print("which <program>")
+    print("displays the path to the given program")
+  end
+  print(shell.resolveProgram(args[1]))
+end
+run()

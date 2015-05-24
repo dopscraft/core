@@ -1,0 +1,42 @@
+--[[
+Utility for loading APIs using a path.
+]]
+
+-- Loads the named API, searching all the paths.
+function loadAPI(api, force)
+  if _G[api] then
+    if force then
+      _G[api] = nil
+    else
+      return false
+    end
+  end
+  local fullname = locateAPI(api)
+  if fullname then
+    return os.loadAPI(fullname)
+  end
+  return false
+end
+
+-- Finds the path to a given custom API.
+function locateAPI(api)
+  local paths = fs.find("/*/apis")
+  for k,path in pairs(paths) do
+    local fullname = fs.combine(path, api)
+    if fs.exists(fullname) then
+      return fullname
+    end
+  end
+  return nil
+end
+
+-- Loads a file as an anonymous function and runs
+-- it immediately.
+function include(file)
+  local h = fs.open(file, "r")
+  if not h then
+    print("Could not include file " .. file)
+    return
+  end
+  loadstring(h.readAll())()
+end

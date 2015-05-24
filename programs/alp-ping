@@ -1,0 +1,31 @@
+loader.loadAPI("alp")
+
+args = { ... }
+
+local waitPing = true
+
+function pingHandler(src, dest, protocol, packet)
+  if src == args[1] then
+    print("ping reply from " .. args[1])
+    waitPing = false
+  end
+end
+
+function ping(host)
+  alp.send(host, "echo", {})
+  alp.listen("echo.r", pingHandler)
+  while waitPing do
+    events.pull()
+  end
+  alp.unlisten("echo.r")
+end
+
+function run()
+  if not args[1] then
+    print("ping <address>")
+    return
+  end
+  print("pinging " .. args[1] .. "...")
+  ping(args[1])
+end
+run()

@@ -1,0 +1,66 @@
+args = { ... }
+
+function pathAsTable()
+  local parts = {}
+  local index = 0
+  for part in string.gmatch(shell.path(), "[^:]+") do
+    index = index + 1
+    parts[index] = part
+  end
+  return parts
+end
+
+function tableToPath(tbl)
+  shell.setPath(table.concat(tbl, ":"))
+end
+
+function list()
+  for k,v in pairs(pathAsTable()) do
+    print(k .. ": " .. v)
+  end
+end
+
+function append(part)
+  local parts = pathAsTable()
+  table.insert(parts, part)
+  tableToPath(parts)
+end
+
+function insert(index, part)
+  local parts = pathAsTable()
+  table.insert(parts, index, part)
+  tableToPath(parts)
+end
+
+function remove(index)
+  local parts = pathAsTable()
+  table.remove(parts, index)
+  tableToPath(parts)
+end
+
+function run()
+  if not args[1] then
+    print("path list")
+    print("path append <path>")
+    print("path insert <index> <path>")
+    print("path remove <index>")
+  end
+  if args[1] == "list" then
+    list()
+    return
+  end
+  if args[1] == "append" and args[2] then
+    append(args[2])
+    return
+  end
+  if args[1] == "insert" and args[2] and args[3] then
+    insert(args[2], args[3])
+    return
+  end
+  if args[1] == "remove" and args[2] then
+    remove(args[2])
+    return
+  end
+  
+end
+run()

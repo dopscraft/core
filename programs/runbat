@@ -1,0 +1,21 @@
+args = {...}
+
+function run()
+  if not args[1] then
+    print "runbat <filename>"
+    print "Runs each line in the given file as a shell command"
+    return
+  end
+
+  local file = fs.open(args[1], "r")
+  if not file then
+    print("Could not open file " .. args[1])
+    return
+  end
+  line = file.readLine()
+  while line do
+    shell.run(line)
+    line = file.readLine()
+  end
+end
+run()

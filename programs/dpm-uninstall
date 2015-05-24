@@ -1,0 +1,13 @@
+local args = { ... }
+
+loader.loadAPI("dpm", true)
+
+function run()
+  if not args[1] then
+    print("dpm-uninstall package")
+    print("uninstalls the named package")
+    return
+  end
+  dpm.removePackage(args[1], true)
+end
+run()

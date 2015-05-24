@@ -1,0 +1,24 @@
+args = { ... }
+
+function allNoPeripherals()
+  print("powering redstone except where there's a peripheral")
+  for k,side in pairs(redstone.getSides()) do
+    if not peripheral.isPresent(side) then
+      redstone.setOutput(side, true)
+    end
+  end
+end
+
+function run()
+  if not args[1] then
+    print("redstone tool")
+    print("rstool noperiph : powers on redstone where there isn't a peripheral")
+    return
+  end
+  if args[1] == "noperiph" then
+    allNoPeripherals()
+    return
+  end
+  print("unknown parameters")
+end
+run()

@@ -1,0 +1,14 @@
+--[[ Actual Startup Script ]]
+
+os.loadAPI("/core/apis/loader")
+-- Add all the /*/programs folders to the path
+local progdirs = fs.find("/*/programs")
+local pathparts = {}
+for k,v in pairs(progdirs) do
+  if fs.isDir(v) then
+    table.insert(pathparts, "/" .. v)
+  end
+end
+shell.setPath(shell.path() .. ":" .. table.concat(pathparts, ":"))
+-- TODO: A more universal startup
+shell.run("runbat autoexec.bat")

@@ -1,0 +1,100 @@
+--[[
+ALP Package Server
+Allows listing and serving of DPM packages
+(actually any format) over ALP.
+Commands are sent as a table with the key 'cmd'
+specifying the command. The rest of the table
+specifies the command parameters.
+
+Two commands currently supported:
+  { cmd = "list" }
+Lists all packages available on the system.
+Returns a { list = { ... } }
+Where the list key contains all the package names
+as values.
+
+  { cmd = "get", package = "name" }
+Gets the package with the given name.
+Returns { file = ... }
+Where the file key contains the file's contents as
+a string.
+
+On error, the server returns:
+{ error = ... }
+Where the error key is a string message.
+]]
+
+loader.loadAPI("alp")
+
+local args = { ... }
+local root = nil
+
+function filesHandler(src, dst, protocol, data)
+  if type(data) ~= "table"
+    or not data.cmd
+    then
+    sendErrorMessage(src, "Malformed command")
+  end
+  
+  if cmd == "list" then
+    sendFileList(src)
+  else if cmd == "get" then
+    if not data.package then
+      sendErrorMessage(src, "Get command without package specified")
+    else
+      sendFile(src, data.package)
+    end
+  else
+    sendErrorMessage(src, "Unknown command")
+  end
+end
+
+function sendErrorMessage(dest, message)
+  alp.send(dest, "packages.r", {
+    error = message
+  })
+end
+
+function sendFileList(dest)
+  alp.send(dest, "packages.r", fs.list(root))
+end
+
+function sendFile(dest, file)
+  if string.find(file, "/") then
+    sendErrorMessage(dest, "Invalid package name")
+    return
+  end
+  local fullpath = fs.combine(root, file)
+  if not fs.exists(fullpath) then
+    sendErrorMessage(dest, "No such package")
+    return
+  end
+  local file = fs.open(fullpath, "r")
+  if not file then
+    sendErrorMessage(dest, "Error reading file")
+    return
+  end
+  alp.send(dest, "packages.r", {
+    file = file.readAll()
+  })
+end
+
+function run()
+  if not args[1] then
+    print("alp-packages <dir>")
+    print("Serves pacakges in the given directory.")
+    return
+  end
+  root = args[1]
+  if not fs.exists(root) or not fs.isDir(root) then
+    print("Must specify an existing directory")
+    return
+  end
+
+  alp.listen("packages", echoHandler, true)
+  while true do
+    events.pull()
+  end
+  alp.unhost("packages")
+end
+run()

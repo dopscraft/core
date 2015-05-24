@@ -1,0 +1,20 @@
+args = { ... }
+
+function run()
+  if not args[1] then
+    print("cat <file>")
+    print("Displays the contents of a file")
+    return
+  end
+  if not fs.exists(args[1]) or fs.isDir(args[1]) then
+    print("not a file")
+    return
+  end
+  file = fs.open(args[1], "r")
+  local line = file.readLine()
+  while line do
+    print(line)
+    line = file.readLine()
+  end
+end
+run()

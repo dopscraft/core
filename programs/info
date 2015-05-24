@@ -1,0 +1,17 @@
+local cid = os.getComputerID()
+local label = os.getComputerLabel()
+if label then
+  label = "(" .. label .. ")"
+else
+  label = ""
+end
+local tx, ty = term.getSize()
+local colour = term.isColor()
+if colour then
+  colour = "(colour)"
+else
+  colour = ""
+end
+
+print("Computer ID: " .. cid .. " " .. label)
+print("Terminal " .. tx .. "x" .. ty .. " ".. colour)

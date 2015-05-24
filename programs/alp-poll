@@ -1,0 +1,50 @@
+loader.loadAPI("alp")
+
+args = { ... }
+
+format = "by-service"
+if args[1] == "by-host" then
+  format = "by-host"
+end
+
+print("polling for services...")
+results = alp.poll(true)
+
+local output = {}
+if format == "by-service" then
+  for host,v in pairs(results) do
+    for k,service in pairs(v) do
+      if not output[service] then
+        output[service] = {}
+      end
+      table.insert(output[service], host)
+    end
+  end
+else
+  output = results
+end
+
+if next(output) == nil then
+  print("no services found")
+end
+
+local i = 0
+for k,v in pairs(output) do
+  if term.isColor() then
+    if i == 0 then
+      term.setTextColor(colors.cyan)
+      i = 1
+    else
+      term.setTextColor(colors.lightGray)
+      i = 0
+    end
+  end
+  local line = k .. ":"
+  for kk,vv in pairs(v) do
+    line = line .. " " .. vv
+  end
+  print(line)
+end
+if term.isColor() then
+  term.setTextColor(colors.white)
+end

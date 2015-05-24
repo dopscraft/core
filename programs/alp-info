@@ -1,0 +1,3 @@
+loader.loadAPI("alp")
+
+print("address: " .. alp.getAddress())

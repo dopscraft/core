@@ -1,0 +1,42 @@
+args = { ... }
+
+function run()
+  if not args[1] then
+    print("apidoc <api>")
+    print("extracts functions and comments from a given custom api")
+    return
+  end
+  local path = loader.locateAPI(args[1])
+  if not path then
+    print("could not locate that api")
+    return
+  end
+  local file = fs.open(path, "r")
+  if not file then
+    print("could not open the api")
+    return
+  end
+  local docs = {}
+  local docLines = {}
+  while true do
+    local line = file.readLine()
+    if not line then
+      break
+    end
+    if string.sub(line, 1, 3) == "-- " then
+      table.insert(docLines, string.sub(line, 4))
+    elseif string.sub(line, 1, 9) == "function "
+      and string.sub(line, 10, 10) ~= "_"
+      then
+      docs[line] = docLines
+      docLines = {}
+    else
+      docLines = {}
+    end
+  end
+  -- TODO: Nicer formatting
+  -- Maybe hand off to some subroutine that can
+  -- display a page of text.
+  print(textutils.serialize(docs))
+end
+run()

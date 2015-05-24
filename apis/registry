@@ -1,0 +1,67 @@
+--[[
+Registry
+Retrieves and stores configuration values from
+within files in /config/registry.
+The key is a dotted string.
+At least one dot is required.
+The part of the key after the last dot corresponds
+to a table index in a serialized table.
+The part of the key before the last dot corresponds
+to the filename of the serialized table.
+]]
+
+local baseDir = "/config/registry"
+
+function getValue(key)
+  local filename, key = _parseKey(key)
+  data = _loadFile(filename)
+  if not data then
+    return nil
+  end
+  return data[key]
+end
+
+function setValue(key, value)
+  local filename, key = _parseKey(key)
+  data = _loadFile(filename)
+  if not data then
+    return false
+  end
+  data[key] = value
+  _saveFile(filename, data)
+end
+
+function _saveFile(file, data)
+  file = fs.combine(baseDir, file)
+  if fs.isDir(file) then
+    return
+  end
+  file = fs.open(file, "w")
+  file.write(textutils.serialize(data))
+  file.close()
+end
+
+function _loadFile(file)
+  file = fs.combine(baseDir, file)
+  if not fs.exists(file) then
+    return {}
+  end
+  if fs.isDir(file) then
+    return nil
+  end
+  file = fs.open(file, "r")
+  local obj = textutils.unserialize(file.readAll())
+  file.close()
+  if type(obj) == "table" then
+    return obj
+  end
+  return {}
+end
+
+-- Returns file, key
+-- E.g. ab.cdef.gh.ij returns
+-- "ab.cdef.gh", "ij"
+function _parseKey(key)
+  return string.match(key, "(.+[^\.])\.([^\.]+)$")
+end
+

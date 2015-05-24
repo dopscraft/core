@@ -1,0 +1,196 @@
+--[[
+Dops Package Manager
+Contains the common functions required for package
+management.
+
+Packages are simply crude tars of a folder in the
+root directory with some metadata that specifies
+what paths within the folder to add to the programs
+search path, and the apis search path used by the
+custom api loader.
+
+The format is:
+{
+  -- The package's unique name.
+  -- Must not contain slashes.
+  -- Must match the folder whose files it contains.
+  name = "name",
+  
+  files = {
+    <file> = <filecontents>,
+    ...
+  },
+  meta = {
+    -- List of string paths to be added to the
+    -- new api loader search path.
+    apis = { ... },
+    -- List of string paths to be added to the
+    -- shell program search path.
+    progs = { ... },
+  },
+}
+]]
+
+-- Turns a root folder into a package.
+-- Returns the package object ready to be
+-- serialized to a file, or to have metadata
+-- added.
+-- On failure, returns false.
+function makePackage(folder, verbose)
+  if not _checkFolder(folder) then
+    _vprint(verbose, "invalid folder name")
+    return false
+  end
+  local package = { 
+    name = folder,
+    files = {}
+  }
+  -- This file flags that it's a valid package
+  -- and allowed to be uninstalled.
+  package.files["/" .. folder .. "/dpm.package"] = "1"
+  local files = {}
+  _recurseFolder("/" .. folder, files)
+  -- TODO: Remove the package name from the start
+  -- of the paths.
+  for k,v in pairs(files) do
+    _vprint(verbose, "packaging " .. v .. " ...")
+    if not fs.isDir(v) then
+      file = fs.open(v, "r")
+      package.files[v] = file.readAll()
+    end
+  end
+  return package
+end
+
+-- Extracts a package object to the folder it
+-- represents.
+-- The folder must not already exist.
+-- Returns false on failure, else true.
+function extractPackage(package, verbose)
+  -- check data correctness
+  if not _checkPackage(package) then
+    _vprint(verbose, "malformed package data")
+    return false
+  end
+  -- check name validity
+  if not _checkFolder(package.name) then
+    _vprint(verbose, "invalid package name")
+    return false
+  end
+  -- check folder of all files matches name
+  -- TODO: automatically prepend the package
+    -- name instead.
+  for k,v in pairs(package.files) do
+    local parts = {}
+    for part in string.gmatch(k, "[^/]+") do
+      table.insert(parts, part)
+    end
+    if not parts[1] or parts[1] ~= package.name then
+      _vprint(verbose, "invalid folder " .. k)
+      return false
+    end
+  end
+  -- check the directory doesn't already exist
+  if fs.exists("/" .. package.name) then
+    _vprint(verbose, "folder " .. package.name .. " already exists")
+    return false
+  end
+  -- extract all files
+  for k,v in pairs(package.files) do
+    local dir = fs.getDir(k)
+    fs.makeDir(dir)
+    local file = fs.open(k, "w")
+    if not file then
+      _vprint(verbose, "unable to create file " .. k)
+      return false
+    end
+    file.write(v)
+    file.close()
+  end
+  return true
+end
+
+-- Extracts the package and updates its metadata.
+-- The package folder must not already exist.
+function installPackage(filename, verbose)
+  local pkgname = filename:gsub("^.*/", "")
+  pkgname = pkgname:gsub("\.[^\.]*$", "")
+  if not _checkFolder(pkgname) then
+    _vprint(verbose, "invalid package name " .. pkgname)
+    return false
+  end
+  if fs.exists("/" .. pkgname) then
+  print(pkgname)
+    _vprint(verbose, "target folder already exists")
+    return false
+  end
+  local file = fs.open(filename, "r")
+  if not file then
+    _vprint(verbose, "could not open file")
+    return false
+  end
+  local package = textutils.unserialize(file.readAll())
+  if not _checkPackage(package) then
+    _vprint(verbose, "invalid package format")
+    return false
+  end
+  if package.name ~= pkgname then
+    _vprint(verbose, "package internal name does not match filename")
+    return false
+  end
+  if not extractPackage(package, verbose) then
+    _vprint(verbose, "could not extract package")
+    return false
+  end
+end
+
+-- Searches package metadata and removes the folder
+-- for the package with that name.
+function removePackage(name, verbose)
+  if not _checkFolder(name) then
+    _vprint(verbose, "invalid package name")
+    return
+  end
+  if not fs.exists("/" .. name .. "/dpm.package") then
+    _vprint(verbose, "not a valid dpm package installation")
+    return
+  end
+  fs.delete("/" .. name)
+end
+
+function _vprint(verbose, str)
+  if verbose then
+    print(str)
+  end
+end
+
+-- Recursively search a directory.
+function _recurseFolder(folder, output)
+  local files = fs.find(folder .. "/*")
+  for k,v in pairs(files) do
+    if v ~= "." and v ~= ".." then
+      if fs.isDir(v) then
+        _recurseFolder(v, output)
+      else
+        table.insert(output, v)
+      end
+    end
+  end
+end
+
+-- Checks that a folder is a single folder.
+function _checkFolder(folder)
+  return not string.find(folder, "[/]")
+end
+
+-- Checks that a package object is a valid package.
+function _checkPackage(package)
+  if not package.name
+    or type(package.name) ~= "string"
+    or not package.files
+    or type(package.files) ~= "table"
+    then
+    return false
+  end
+  return true
+end

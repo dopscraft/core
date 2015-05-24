@@ -1,0 +1,4 @@
+--[[ Sets up startup scripts ]]
+shell.run("cp startup /")
+shell.run("cp autoexec.bat /")
+print("Files copied. You must reboot.")

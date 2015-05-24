@@ -1,0 +1,12 @@
+loader.loadAPI("alp")
+
+function echoHandler(src, dst, protocol, data)
+  print("ping request from " .. src)
+  alp.send(src, "echo.r", data)
+end
+
+alp.listen("echo", echoHandler, true)
+while true do
+  events.pull()
+end
+alp.unhost("echo")

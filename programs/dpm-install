@@ -1,0 +1,13 @@
+local args = { ... }
+
+loader.loadAPI("dpm")
+
+function run()
+  if not args[1] then
+    print("dpm-install <filename>")
+    print("installs a dpm package, setting up its api and program search paths")
+    return
+  end
+  dpm.installPackage(args[1], true)
+end
+run()
