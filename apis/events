@@ -1,62 +1,78 @@
 --[[
 Event Handler
-Wraps os.pullEvent() but allows us to register
-callbacks that occur for particular event types.
-
+ 
+A class to enable events.
+Each program instance only needs one of these.
+ 
 Usage:
-
+-- Create the instance.
+local eh = events.create()
+ 
+-- Create a callback.
 function myHandler(a, b, c)
   blah blah
 end
-
--- Multiple functions can handle the same event.
--- Multiple events can be handled by the same
--- function.
-events.register("some_event_type", myHandler)
+ 
+-- Register the callback.
+eh:register("some_event_type", myHandler)
+ 
 while true do
-  -- This returns the same as os.pullEvent
-  -- But prior to returning will call all the
-  -- event callbacks.
-  evt, a, b, c, d, e = event.pull()
+  -- We can still handle events here the way we
+  -- would with os.pullEvent, but in addition all
+  -- callbacks we've created are also called.
+  evt, a, b = eh:pullEvent()
 end
-
-events.unregister("some_event_type", myHandler)
+ 
+-- We can unregister if we need to.
+eh:unregister(myHandler)
 --]]
-
-local callbacks = {}
-
-function register(event, func)
-  for k,v in pairs(callbacks) do
-    if v[1] == event and v[2] == func then
+ 
+local Events = {}
+Events.__index = Events
+ 
+function Events:register(event, handler)
+  for k,v in pairs(self.callbacks) do
+    if v[1] == event and v[2] == handler then
       return
     end
   end
-  table.insert(callbacks, { event, func })
+  table.insert(self.callbacks, { event, handler })
 end
-
-function unregister(event, func)
-  local removes = {}
-  for k,v in pairs(callbacks) do
-    if v[1] == event and v[2] == func then
-      removes[k] = k
+ 
+-- Takes an event name or nil, and a callback or
+-- nil.
+function Events:unregister(a, b)
+  local removeKeys = {}
+  for k,v in pairs(self.callbacks) do
+    if (a == nil or a == v[1])
+      and (b == nil or b == v[2])
+      then
+      removeKeys[k] = true
     end
   end
-  for k,v in pairs(removes) do
-    callbacks[k] = nil
+  for k,v in pairs(removeKeys) do
+    self.callbacks[k] = nil
   end
 end
-
-function pull(filter)
+ 
+function Events:pullEvent(filter)
   while true do
-    evt, p1, p2, p3, p4, p5 = os.pullEvent()
-    for k,v in pairs(callbacks) do
-      if evt == v[1] then
+    evt, p1, p2, p3, p4, p5 = os.pullEvent(filter)
+    for k,v in pairs(self.callbacks) do
+      if v[1] == evt then
         v[2](p1, p2, p3, p4, p5)
       end
     end
-    if filter == nil or evt == filter then
+    if filter == nil or filter == evt then
       return evt, p1, p2, p3, p4, p5
     end
   end
 end
-
+ 
+-- Creates an instance of an event manager.
+function create()
+  em = {}
+  setmetatable(em, Events)
+  em.callbacks = {}
+  return em
+end

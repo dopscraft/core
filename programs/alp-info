@@ -1,3 +1,6 @@
 loader.loadAPI("alp")
+loader.loadAPI("events")
+local myEvents = events.create()
+local myAlp = alp.create(myEvents)
 
-print("address: " .. alp.getAddress())
+print("address: " .. myAlp.getAddress())

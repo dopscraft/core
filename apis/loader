@@ -26,6 +26,10 @@ function locateAPI(api)
     if fs.exists(fullname) then
       return fullname
     end
+    fullname = fullname .. ".lua"
+	if fs.exists(fullname) then
+      return fullname
+    end
   end
   return nil
 end

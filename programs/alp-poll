@@ -1,4 +1,7 @@
 loader.loadAPI("alp")
+loader.loadAPI("events")
+local myEvents = events.create()
+local myAlp = alp.create(myEvents)
 
 args = { ... }
 
@@ -8,7 +11,7 @@ if args[1] == "by-host" then
 end
 
 print("polling for services...")
-results = alp.poll(true)
+results = myAlp.poll(true)
 
 local output = {}
 if format == "by-service" then

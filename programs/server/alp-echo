@@ -1,12 +1,15 @@
 loader.loadAPI("alp")
+loader.loadAPI("events")
+local myEvents = events.create()
+local myAlp = alp.create(myEvents)
 
 function echoHandler(src, dst, protocol, data)
   print("ping request from " .. src)
-  alp.send(src, "echo.r", data)
+  myAlp.send(src, "echo.r", data)
 end
 
-alp.listen("echo", echoHandler, true)
+myAlp.listen("echo", echoHandler, true)
 while true do
-  events.pull()
+  myEvents.pullEvent()
 end
-alp.unhost("echo")
+myAlp.unhost("echo")

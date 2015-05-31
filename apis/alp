@@ -1,15 +1,13 @@
 --[[
-========================
-Addressing Layer Protocol
-Uses channel 2906.
-Each computer is given an address.
-Packets are marked with the address they came from
-and the address they're directed at.
+Address Layer Protocol
 
-Usage:
-  Loading the API initializes the system,
-  loading data from the configuration file at
-  /config/alp.cfg
+New design:
+
+The core API automatically translates incoming
+messages into ALP events which are received by
+os.pullEvent.
+
+Configuration: /config/alp.cfg
   {
     -- The computer's own address is specified as
     -- follows. It is 4 digit hexadecimal.
@@ -20,91 +18,136 @@ Usage:
     
     -- Routing config hasn't been decided.
   }
-  
-alp.getAddress()
-  Returns the computer's address as configured.
-  
-alp.send(address, protocol, data)
-  Sends the data to the given address.
-  Address 0000 broadcasts to all computers on the
-  same interface. ffff broadcasts to all
-  computers.
-  The protocol is a string used for filtering.
-  The data can be anything.
 
--- We use event callbacks to host.
--- They use a common event handler that can
--- register other callbacks for other things.
-function myHandler(src, dst, protocol, data)
-  blah blah
+Possible extensions:
+* Encapsulation of a request/response style,
+  so that we can associate received packets with
+  the specific ones we've sent.
+]]
+
+local Alp = {}
+Alp.__index = Alp
+
+-- Creates an ALP object.
+function create(eventHandler)
+  local alp = {
+    eventHandler = eventHandler,
+    config = {},
+    modems = {}, -- list of modem interface objects
+    listening = {}, -- protocol -> callback
+    hosting = {}, -- keys are protocols being hosted
+    addressSide = {}, -- helps limit routing
+  }
+  setmetatable(alp, Alp)
+  alp:_init(events)
 end
--- One handler to one protocol.
--- The last parameter specifies whether or not
--- to advertise the listening as a host to any
--- who poll for it.
-alp.listen("someprot", myHandler, true)
-while true do
-  -- We can still get whatever raw data we want
-  -- from os.pullEvent() via this method.
-  event.pull()
+
+-- Returns the machine's configured address.
+local function Alp:getAddress()
+  return self.config.address
 end
-alp.unlisten("someprot")
 
--- Finally, we can poll for hosted services.
--- The boolean parameter is whether to block and
--- return the list of services. If false, the
--- program must listen for "alp.poll.r"
-alp.poll(true)
--- If blocking, then it returns a table e.g.:
-{
-  "add0" = { "protocol1", "protocol2" },
-  "add2" = { "protocol3" }
-}
-==========================
---]]
+-- Sends an ALP packet to the given address on
+-- the given protocol containing the given data.
+local function Alp:send(address, protocol, data)
+end
 
-loader.loadAPI("events")
-
-local init = false
-local config = {} -- the config file
-local modems = {} -- list of modem interfaces
-local listening = {} -- map protocol to callback
-local hosting = {} -- protocols being hosted, as keys
-local addressSide = {} -- used to limit routing
-
-function _init()
-  if init then
-    return
+-- Listens on the given protocol for packets.
+-- The handler will be called for each packet
+-- received, with parameters:
+-- source, destination, protocol, data
+local function Alp:listen(protocol, handler, isHost)
+  if self.listening[protocol] then
+    return false
   end
-  init = true
+  if next(self.listening) == nil then
+    _listen()
+  end
+  self.listening[protocol] = handler
+  if ishost then
+    self.hosting[protocol] = true
+  end
+  return true
+end
+
+-- Stops listening for a given protocol.
+local function Alp:unlisten(protocol)
+  self.listening[protocol] = nil
+  self.hosting[protocol] = nil
+  if next(self.listening) == nil then
+    _unlisten()
+  end
+end
+
+-- This will cause the event handler to poll
+-- for events, triggering callbacks for all
+-- registered event types which have occured.
+-- It is acceptable to call the event handler's
+-- pullEvent directly if its functionality is
+-- needed.
+local function Alp:pullEvent()
+  self.eventHandler:pullEvent()
+end
+
+-- This will poll the network for hosted services.
+-- Returns a table with keys of addresses, and values
+-- of tables of protocols.
+local function Alp:poll(blocking, wait)
+  self:send("ffff", "alp.poll", {})
+  if blocking then
+    local hosts = {}
+    local timer = os.startTimer(wait or 2)
+	local function dummyHandler(src, dst, protocol, data)
+      if protocol == "alp.poll.r" and type(data) == "table" then
+        self.hosts[src] = {}
+        for k,v in pairs(data) do
+          table.insert(hosts[src], k)
+        end
+      end
+	end
+    self:listen("alp.poll.r", dummyHandler)
+    while true do
+      local evt, src, dst, protocol, data = self.eventHandler:pullEvent()
+      if evt == "timer" then
+        break
+      end
+      if evt == "alp_packet"
+        and protocol == "alp.poll.r"
+        and dst == self.config.address
+        then
+        self.hosts[src] = {}
+        for k,v in pairs(data) do
+          table.insert(hosts[src], k)
+        end
+      end
+    end
+    self:unlisten("alp.poll.r")
+    return hosts
+  end
+end
+
+-- Sort of constructor.
+local function Alp:_init(eventHandler)
   local filename = "/config/alp.cfg"
   if fs.exists(filename) then
-    file = fs.open(filename, "r")
+    local file = fs.open(filename, "r")
     if file then
-      config = textutils.unserialize(file.readAll())
+      self.config = textutils.unserialize(file.readAll())
       file.close()
     end
   end
-  if not config.address then
+  if not self.config.address then
     -- Make up an address.
-    config.address = tostring(os.getComputerID())
-    local pad = math.max(1, 4 - string.len(config.address))
-    config.address = string.rep("0", pad) .. config.address
+    self.config.address = tostring(os.getComputerID())
+    local pad = math.max(1, 4 - string.len(self.config.address))
+    self.config.address = string.rep("0", pad) .. config.address
   end
-  modems = { peripheral.find("modem") }
-end
-_init()
-
-function getAddress()
-  return config.address
+  self.modems = { peripheral.find("modem") }
 end
 
-function send(address, protocol, data)
-  _send(config.address, address, protocol, data)
-end
-
-function _send(src, dst, protocol, data, routing)
-  local packet = {
+-- Real send method.
+local function Alp:_send(src, dst, protocol, data, routing)
+ local packet = {
     alp = "1",
     src = src,
     dst = dst,
@@ -113,8 +156,8 @@ function _send(src, dst, protocol, data, routing)
     routing = routing
   }
   packet = textutils.serialize(packet)
-  if address == config.address then
-    _listenHandler("inside", 2906, 2906, packet, 0)
+  if dst == config.address then
+    self.handlerCallback("inside", 2906, 2906, packet, 0)
     return
   end
   for k,modem in pairs(modems) do
@@ -122,122 +165,75 @@ function _send(src, dst, protocol, data, routing)
   end
 end
 
--- returns false if we're already hosting that
--- protocol
-function listen(protocol, handler, ishost)
-  if listening[protocol] then
-    return false
+-- Set our listen handler using closures.
+local function Alp:_listen()
+  for k,modem in pairs(self.modems) do
+    modem.open(2906)
   end
-  if next(listening) == nil then
-    _openModems()
-    events.register("modem_message", _listenHandler)
-  end
-  listening[protocol] = handler
-  if ishost then
-    hosting[protocol] = true
-  end
-  return true
-end
-
-function unlisten(protocol)
-  listening[protocol] = nil
-  hosting[protocol] = nil
-  if next(listening) == nil then
-    _closeModems()
-    events.unregister("modem_message", _listenHandler)
-  end
-end
-
-function poll(blocking, wait)
-  send("ffff", "alp.poll", {})
-  if blocking then
-    local hosts = {}
-    local timer = os.startTimer(wait or 2)
-    listen("alp.poll.r", _dummyHandler)
-    while true do
-      evt, src, dst, protocol, data = events.pull()
-      if evt == "timer" then
-        break
-      end
-      if evt == "alp_packet"
-        and protocol == "alp.poll.r"
-        and dst == config.address
+  -- Like javascript closure stuff but names reversed.
+  -- The nested function refers to our current 'self' as 'this' even after we return.
+  local this = self
+  local function listenHandler(side, freq, rfreq, msg, dist)
+    if type(msg) ~= "string" then
+      return
+    end
+    local packet = textutils.unserialize(msg)
+    if type(packet) ~= "table"
+      or not packet.alp
+      or not packet.src
+      or not packet.dst
+      or not packet.protocol
+      or not packet.data
+      then
+      return
+    end
+    if packet.alp ~= "1" then
+      return
+    end
+    -- Routing.
+    if this.config.routing then
+      this.addressSide[packet.src] = side
+      if not this.addressSide[packet.dst]
+        or this.addressSide[packet.dst] ~= side
         then
-        hosts[src] = {}
-        for k,v in pairs(data) do
-          table.insert(hosts[src], k)
+        local routing = packet.routing
+        if not routing then
+          routing = {}
+        end
+        -- Only route if we haven't routed it before
+        if not routing[config.address] then
+          routing[this.config.address] = #routing
+          _send(packet.src, packet.dst, packet.protocol, packet.data, routing)
         end
       end
     end
-    unlisten("alp.poll.r")
-    return hosts
-  end
-end
-
-function _listenHandler(side, freq, rfreq, msg, dist)
-  if type(msg) ~= "string" then
-    return
-  end
-  local packet = textutils.unserialize(msg)
-  if type(packet) ~= "table"
-    or not packet.alp
-    or not packet.src
-    or not packet.dst
-    or not packet.protocol
-    or not packet.data
-    then
-    return
-  end
-  if packet.alp ~= "1" then
-    return
-  end
-  -- Routing.
-  if config.routing then
-    addressSide[packet.src] = side
-    if addressSide[packet.dst]
-      and addressSide[packet.dst] ~= side
+    -- Acept valid addresses.
+    if packet.dst ~= this.config.address
+      and packet.dst ~= "0000"
+      and packet.dst ~= "ffff"
       then
-      routing = packet.routing
-      if not routing then
-        routing = {}
-      end
-      -- Only route if we haven't routed it before
-      if not routing[config.address] then
-        routing[config.address] = #routing
-        _send(packet.src, packet.dst, packet.protocol, packet.data, routing)
-      end
+      return
+    end
+    -- Automatically handle polling for services.
+    if packet.protocol == "alp.poll" then
+      send(packet.src, "alp.poll.r", this.hosting)
+      return
+    end
+    -- Pass any other packets to the callback.
+    if this.listening[packet.protocol] then
+      this.listening[packet.protocol](packet.src, packet.dst, packet.protocol, packet.data)
+      --os.queueEvent("alp_packet", packet.src, packet.dst, packet.protocol, packet.data)
     end
   end
-  -- Acept valid addresses.
-  if packet.dst ~= config.address
-    and packet.dst ~= "0000"
-    and packet.dst ~= "ffff"
-    then
-    return
-  end
-  -- Automatically handle service polling.
-  if packet.protocol == "alp.poll" then
-    send(packet.src, "alp.poll.r", hosting)
-    return
-  end
-  -- Pass any other packets to the callback.
-  if listening[packet.protocol] then
-    listening[packet.protocol](packet.src, packet.dst, packet.protocol, packet.data)
-    os.queueEvent("alp_packet", packet.src, packet.dst, packet.protocol, packet.data)
-  end
+  self.eventHandler:register("modem_message", listenHandler)
+  self.handlerCallback = listenHandler
 end
 
-function _openModems()
-  for k,modem in pairs(modems) do
-    modem.open(2906)
-  end
-end
-
-function _closeModems()
-  for k,modem in pairs(modems) do
+local function Alp:_unlisten(eventHandler)
+  for k,modem in pairs(self.modems) do
     modem.close(2906)
   end
+  self.eventHandler:unregister("modem_message", self.handlerCallback)
+  self.handlerCallback = nil
 end
 
-function _dummyHandler()
-end

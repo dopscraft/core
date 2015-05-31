@@ -25,6 +25,9 @@ Where the error key is a string message.
 ]]
 
 loader.loadAPI("alp")
+loader.loadAPI("events")
+local myEvents = events.create()
+local myAlp = alp.create(myEvents)
 
 local args = { ... }
 local root = nil
@@ -50,13 +53,13 @@ function filesHandler(src, dst, protocol, data)
 end
 
 function sendErrorMessage(dest, message)
-  alp.send(dest, "packages.r", {
+  myAlp.send(dest, "packages.r", {
     error = message
   })
 end
 
 function sendFileList(dest)
-  alp.send(dest, "packages.r", fs.list(root))
+  myAlp.send(dest, "packages.r", fs.list(root))
 end
 
 function sendFile(dest, file)
@@ -74,7 +77,7 @@ function sendFile(dest, file)
     sendErrorMessage(dest, "Error reading file")
     return
   end
-  alp.send(dest, "packages.r", {
+  myAlp.send(dest, "packages.r", {
     file = file.readAll()
   })
 end
@@ -91,10 +94,10 @@ function run()
     return
   end
 
-  alp.listen("packages", echoHandler, true)
+  myAlp.listen("packages", echoHandler, true)
   while true do
-    events.pull()
+    myEvents.pullEvent()
   end
-  alp.unhost("packages")
+  myAlp.unhost("packages")
 end
 run()
