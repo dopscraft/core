@@ -11,7 +11,7 @@ if args[1] == "by-host" then
 end
 
 print("polling for services...")
-results = myAlp.poll(true)
+results = myAlp:poll(true)
 
 local output = {}
 if format == "by-service" then

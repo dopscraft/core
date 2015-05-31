@@ -5,11 +5,11 @@ local myAlp = alp.create(myEvents)
 
 function echoHandler(src, dst, protocol, data)
   print("ping request from " .. src)
-  myAlp.send(src, "echo.r", data)
+  myAlp:send(src, "echo.r", data)
 end
 
-myAlp.listen("echo", echoHandler, true)
+myAlp:listen("echo", echoHandler, true)
 while true do
-  myEvents.pullEvent()
+  myEvents:pullEvent()
 end
-myAlp.unhost("echo")
+myAlp:unhost("echo")

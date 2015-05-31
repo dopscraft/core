@@ -15,12 +15,12 @@ function pingHandler(src, dest, protocol, packet)
 end
 
 function ping(host)
-  myAlp.send(host, "echo", {})
-  myAlp.listen("echo.r", pingHandler)
+  myAlp:send(host, "echo", {})
+  myAlp:listen("echo.r", pingHandler)
   while waitPing do
-    myEvents.pullEvent()
+    myEvents:pullEvent()
   end
-  myAlp.unlisten("echo.r")
+  myAlp:unlisten("echo.r")
 end
 
 function run()

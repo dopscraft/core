@@ -53,13 +53,13 @@ function filesHandler(src, dst, protocol, data)
 end
 
 function sendErrorMessage(dest, message)
-  myAlp.send(dest, "packages.r", {
+  myAlp:send(dest, "packages.r", {
     error = message
   })
 end
 
 function sendFileList(dest)
-  myAlp.send(dest, "packages.r", fs.list(root))
+  myAlp:send(dest, "packages.r", fs.list(root))
 end
 
 function sendFile(dest, file)
@@ -77,7 +77,7 @@ function sendFile(dest, file)
     sendErrorMessage(dest, "Error reading file")
     return
   end
-  myAlp.send(dest, "packages.r", {
+  myAlp:send(dest, "packages.r", {
     file = file.readAll()
   })
 end
@@ -94,10 +94,10 @@ function run()
     return
   end
 
-  myAlp.listen("packages", echoHandler, true)
+  myAlp:listen("packages", echoHandler, true)
   while true do
-    myEvents.pullEvent()
+    myEvents:pullEvent()
   end
-  myAlp.unhost("packages")
+  myAlp:unhost("packages")
 end
 run()
