@@ -158,10 +158,7 @@ function Alp:_send(src, dst, protocol, data, routing)
     routing = routing
   }
   packet = textutils.serialize(packet)
-  if dst == self.config.address then
-    self.handlerCallback("inside", 2906, 2906, packet, 0)
-    return
-  end
+  -- TODO: Implement working loopback
   for k,modem in pairs(self.modems) do
      modem.transmit(2906, 2906, packet)
   end
