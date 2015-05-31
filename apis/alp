@@ -215,7 +215,7 @@ function Alp:_listen()
     end
     -- Automatically handle polling for services.
     if packet.protocol == "alp.poll" then
-      send(packet.src, "alp.poll.r", this.hosting)
+      self:send(packet.src, "alp.poll.r", this.hosting)
       return
     end
     -- Pass any other packets to the callback.
