@@ -32,7 +32,7 @@ local myAlp = alp.create(myEvents)
 local args = { ... }
 local root = nil
 
-function filesHandler(src, dst, protocol, data)
+local function filesHandler(src, dst, protocol, data)
   if type(data) ~= "table"
     or not data.cmd
     then
@@ -52,17 +52,17 @@ function filesHandler(src, dst, protocol, data)
   end
 end
 
-function sendErrorMessage(dest, message)
+local function sendErrorMessage(dest, message)
   myAlp:send(dest, "packages.r", {
     error = message
   })
 end
 
-function sendFileList(dest)
+local function sendFileList(dest)
   myAlp:send(dest, "packages.r", fs.list(root))
 end
 
-function sendFile(dest, file)
+local function sendFile(dest, file)
   if string.find(file, "/") then
     sendErrorMessage(dest, "Invalid package name")
     return
@@ -82,7 +82,7 @@ function sendFile(dest, file)
   })
 end
 
-function run()
+local function run()
   if not args[1] then
     print("alp-packages <dir>")
     print("Serves pacakges in the given directory.")

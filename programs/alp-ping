@@ -7,14 +7,14 @@ args = { ... }
 
 local waitPing = true
 
-function pingHandler(src, dest, protocol, packet)
+local function pingHandler(src, dest, protocol, packet)
   if src == args[1] then
     print("ping reply from " .. args[1])
     waitPing = false
   end
 end
 
-function ping(host)
+local function ping(host)
   myAlp:send(host, "echo", {})
   myAlp:listen("echo.r", pingHandler)
   while waitPing do
@@ -23,7 +23,7 @@ function ping(host)
   myAlp:unlisten("echo.r")
 end
 
-function run()
+local function run()
   if not args[1] then
     print("ping <address>")
     return

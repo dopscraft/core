@@ -3,7 +3,7 @@ loader.loadAPI("events")
 local myEvents = events.create()
 local myAlp = alp.create(myEvents)
 
-function echoHandler(src, dst, protocol, data)
+local function echoHandler(src, dst, protocol, data)
   print("ping request from " .. src)
   myAlp:send(src, "echo.r", data)
 end
