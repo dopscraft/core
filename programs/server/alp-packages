@@ -41,7 +41,7 @@ local function filesHandler(src, dst, protocol, data)
   
   if cmd == "list" then
     sendFileList(src)
-  else if cmd == "get" then
+  elseif cmd == "get" then
     if not data.package then
       sendErrorMessage(src, "Get command without package specified")
     else
