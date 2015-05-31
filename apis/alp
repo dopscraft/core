@@ -66,7 +66,7 @@ function Alp:listen(protocol, handler, isHost)
     self:_listen()
   end
   self.listening[protocol] = handler
-  if ishost then
+  if isHost then
     self.hosting[protocol] = true
   end
   return true
