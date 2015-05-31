@@ -5,13 +5,13 @@ local myAlp = alp.create(myEvents)
 
 args = { ... }
 
-format = "by-service"
+local format = "by-service"
 if args[1] == "by-host" then
   format = "by-host"
 end
 
 print("polling for services...")
-results = myAlp:poll(true)
+local results = myAlp:poll(true)
 
 local output = {}
 if format == "by-service" then

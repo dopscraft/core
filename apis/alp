@@ -113,15 +113,6 @@ function Alp:poll(blocking, wait)
       if evt == "timer" then
         break
       end
-      if evt == "alp_packet"
-        and protocol == "alp.poll.r"
-        and dst == self.config.address
-        then
-        self.hosts[src] = {}
-        for k,v in pairs(data) do
-          table.insert(hosts[src], k)
-        end
-      end
     end
     self:unlisten("alp.poll.r")
     return hosts
