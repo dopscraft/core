@@ -50,6 +50,7 @@ end
 -- Sends an ALP packet to the given address on
 -- the given protocol containing the given data.
 function Alp:send(address, protocol, data)
+	self:_send(self.config.address, address, protocol, data)
 end
 
 -- Listens on the given protocol for packets.
