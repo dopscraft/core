@@ -142,7 +142,7 @@ function Alp:_init(eventHandler)
     -- Make up an address.
     self.config.address = tostring(os.getComputerID())
     local pad = math.max(1, 4 - string.len(self.config.address))
-    self.config.address = string.rep("0", pad) .. config.address
+    self.config.address = string.rep("0", pad) .. self.config.address
   end
   self.modems = { peripheral.find("modem") }
 end
@@ -202,7 +202,7 @@ function Alp:_listen()
         -- Only route if we haven't routed it before
         if not routing[config.address] then
           routing[this.config.address] = #routing
-          _send(packet.src, packet.dst, packet.protocol, packet.data, routing)
+          this:_send(packet.src, packet.dst, packet.protocol, packet.data, routing)
         end
       end
     end
@@ -215,7 +215,7 @@ function Alp:_listen()
     end
     -- Automatically handle polling for services.
     if packet.protocol == "alp.poll" then
-      self:send(packet.src, "alp.poll.r", this.hosting)
+      this:send(packet.src, "alp.poll.r", this.hosting)
       return
     end
     -- Pass any other packets to the callback.
