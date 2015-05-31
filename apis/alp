@@ -63,7 +63,7 @@ function Alp:listen(protocol, handler, isHost)
     return false
   end
   if next(self.listening) == nil then
-    _listen()
+    self:_listen()
   end
   self.listening[protocol] = handler
   if ishost then
@@ -77,7 +77,7 @@ function Alp:unlisten(protocol)
   self.listening[protocol] = nil
   self.hosting[protocol] = nil
   if next(self.listening) == nil then
-    _unlisten()
+    self:_unlisten()
   end
 end
 
@@ -99,14 +99,14 @@ function Alp:poll(blocking, wait)
   if blocking then
     local hosts = {}
     local timer = os.startTimer(wait or 2)
-	local function dummyHandler(src, dst, protocol, data)
+    local function dummyHandler(src, dst, protocol, data)
       if protocol == "alp.poll.r" and type(data) == "table" then
-        self.hosts[src] = {}
+        hosts[src] = {}
         for k,v in pairs(data) do
           table.insert(hosts[src], k)
         end
       end
-	end
+    end
     self:listen("alp.poll.r", dummyHandler)
     while true do
       local evt, src, dst, protocol, data = self.eventHandler:pullEvent()
@@ -158,11 +158,11 @@ function Alp:_send(src, dst, protocol, data, routing)
     routing = routing
   }
   packet = textutils.serialize(packet)
-  if dst == config.address then
+  if dst == self.config.address then
     self.handlerCallback("inside", 2906, 2906, packet, 0)
     return
   end
-  for k,modem in pairs(modems) do
+  for k,modem in pairs(self.modems) do
      modem.transmit(2906, 2906, packet)
   end
 end
