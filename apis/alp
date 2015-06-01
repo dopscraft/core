@@ -101,7 +101,9 @@ function Alp:poll(blocking, wait)
     local timer = os.startTimer(wait or 2)
     local function dummyHandler(src, dst, protocol, data)
       if protocol == "alp.poll.r" and type(data) == "table" then
-        hosts[src] = {}
+        if not hosts[src] then
+          hosts[src] = {}
+        end
         for k,v in pairs(data) do
           table.insert(hosts[src], k)
         end
