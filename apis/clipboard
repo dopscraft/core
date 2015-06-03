@@ -1,0 +1,51 @@
+--[[
+Clipboard
+Intended for transient, user-invoked cross-program
+data storage.
+]]
+ 
+clipboard = {}
+ 
+-- Sets the clipboard with some data.
+-- The existing data on the clipboard
+-- may be overwritten.
+function set(data)
+  clipboard[type(data)] = data
+end
+ 
+-- Tries to return data from the clipboard of the
+-- given type. Various conversions might be
+-- attempted.
+function get(type)
+  if clipboard[type] then
+    return clipboard[type]
+  end
+  if type == "string" then
+    if clipboard["number"] then
+      return tostring(clipboard["number"])
+    end
+    if clipboard["table"] then
+      local tbl = clipboard["table"]
+      if tbl[1] then
+        return tbl[1]
+      end
+    end
+  end
+  if type == "number" then
+    if clipboard["string"] then
+      local str = clipboard["string"]
+      local num = tonumber(str)
+      -- Return string as a number if it's a
+      -- consistent numeric representation of one.
+      if str == tostring(num) then
+        return num
+      end
+    end
+  end
+  return nil
+end
+ 
+-- Clears all data on the clipboard.
+function clear()
+  clipboard = {}
+end
