@@ -1,2 +1,7 @@
--- [[ Wrapper Startup Script ]]
+-- [[
+Wrapper Startup Script
+This gets copied to the root directory where it
+will invoke the actual core startup script on
+boot.
+]]
 shell.run("/core/startup")

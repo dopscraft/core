@@ -1,7 +1,16 @@
---[[ Actual Startup Script ]]
+--[[Actual Startup Script]]
 
+--------------------------------------------------
+-- Load a custom API loader which lets us specify
+-- an API name without a path. The folders
+-- /*/apis/ will be searched until a file is
+-- found.
+--------------------------------------------------
 os.loadAPI("/core/apis/loader")
--- Add all the /*/programs folders to the path
+
+--------------------------------------------------
+-- Add /*/programs/ to the shell's path.
+--------------------------------------------------
 local progdirs = fs.find("/*/programs")
 local pathparts = {}
 for k,v in pairs(progdirs) do
@@ -10,5 +19,8 @@ for k,v in pairs(progdirs) do
   end
 end
 shell.setPath(shell.path() .. ":" .. table.concat(pathparts, ":"))
--- TODO: A more universal startup
+
+--------------------------------------------------
+-- Run a batch file which can then run anything
+-- we want at startup.
 shell.run("runbat autoexec.bat")

@@ -1,8 +1,22 @@
 --[[
 Utility for loading APIs using a path.
+
+e.g.
+  loader.loadAPI("events")
+will load the core events API, 
+  "/core/apis/events"
 ]]
 
--- Loads the named API, searching all the paths.
+--------------------------------------------------
+-- @param string api The name of the API to load,
+-- without path. We search /*/apis/ for the API
+-- and load it.
+-- @param bool force If true, we reload the API
+-- rather than skipping it if loaded. This is
+-- useful for testing an API while developing it,
+-- but normally programs should omit this
+-- parameter.
+--------------------------------------------------
 function loadAPI(api, force)
   if _G[api] then
     if force then
@@ -18,7 +32,11 @@ function loadAPI(api, force)
   return false
 end
 
--- Finds the path to a given custom API.
+--------------------------------------------------
+-- @param string api The name of the API to load,
+-- without path. We search /*/apis/ for the API
+-- and return the path to it.
+--------------------------------------------------
 function locateAPI(api)
   local paths = fs.find("/*/apis")
   for k,path in pairs(paths) do
@@ -34,8 +52,11 @@ function locateAPI(api)
   return nil
 end
 
--- Loads a file as an anonymous function and runs
--- it immediately.
+--------------------------------------------------
+-- Loads a fle and runs it immediately as an
+-- anonymous function. None of the locals it
+-- declares will persist after it has run.
+--------------------------------------------------
 function include(file)
   local h = fs.open(file, "r")
   if not h then

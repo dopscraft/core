@@ -1,3 +1,10 @@
+--[[
+ALP Echo
+Listens for the protocol "echo" and for each
+packet received, sends the data back to the
+sending address on the protocol "echo.r"
+]]
+
 loader.loadAPI("alp")
 loader.loadAPI("events")
 local myEvents = events.create()
