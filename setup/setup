@@ -1,4 +1,5 @@
 --[[ Sets up startup scripts ]]
-shell.run("cp startup /")
-shell.run("cp autoexec.bat /")
+local path = "/" .. shell.getRunningProgram():match("(.*/)")
+shell.run("cp " .. path .. "startup /")
+shell.run("cp " .. path .. "autoexec.bat /")
 print("Files copied. You must reboot.")
