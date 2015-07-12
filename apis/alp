@@ -1,42 +1,42 @@
 --[[
 Address Layer Protocol
-
+ 
 The core API automatically translates incoming
 messages into ALP events which are received by
 os.pullEvent.
-
+ 
 For an example client and server, see
 /core/server/alp-echo for the server, and
 /core/alp-ping for the client.
-
+ 
 Configuration: /config/alp.cfg
   {
     -- The computer's own address is specified as
     -- follows. It is 4 digit hexadecimal.
     -- If not specified, one will be made up.
     address = "f123"
-    
-    -- Routing config hasn't been decided.
   }
-
+ 
 Protocols:
 Protocols are identified by strings.
 They can be anything.
 By convention, in a client/server setup I use
 "<something>" for the server, and
 "<something>.r" for replies.
-
+ 
 Fixes:
-
+ 
 Possible extensions:
 * Encapsulation of a request/response style,
   so that we can associate received packets with
   the specific ones we've sent.
 ]]
-
+ 
+loader.loadAPI("guid")
+ 
 local Alp = {}
 Alp.__index = Alp
-
+ 
 -- Creates an ALP object.
 function create(eventHandler)
   local alp = {
@@ -45,28 +45,28 @@ function create(eventHandler)
     modems = {}, -- list of modem interface objects
     listening = {}, -- protocol -> callback
     hosting = {}, -- keys are protocols being hosted
-    addressSide = {}, -- helps limit routing
+    packetGuids = {} -- list of recently received packet guids
   }
   setmetatable(alp, Alp)
   alp:_init(events)
   return alp
 end
-
+ 
 --------------------------------------------------
 -- Returns the machine's configured address.
 --------------------------------------------------
 function Alp:getAddress()
   return self.config.address
 end
-
+ 
 --------------------------------------------------
 -- Sends an ALP packet to the given address on
 -- the given protocol containing the given data.
 --------------------------------------------------
 function Alp:send(address, protocol, data)
-	self:_send(self.config.address, address, protocol, data)
+  self:_send(self.config.address, address, protocol, data)
 end
-
+ 
 --------------------------------------------------
 -- Listens on the given protocol for packets.
 -- The handler will be called for each packet
@@ -77,27 +77,35 @@ function Alp:listen(protocol, handler, isHost)
   if self.listening[protocol] then
     return false
   end
-  if next(self.listening) == nil then
-    self:_listen()
-  end
   self.listening[protocol] = handler
   if isHost then
     self.hosting[protocol] = true
   end
+  self:_updateListen()
   return true
 end
-
+ 
+--------------------------------------------------
+-- Turns on or off repeating.
+--------------------------------------------------
+function Alp:setRepeating(enable)
+  if enable then
+    self.isRepeating = true
+  else
+    self.isRepeating = nil
+  end
+  self:_updateListen()
+end
+ 
 --------------------------------------------------
 -- Stops listening for a given protocol.
 --------------------------------------------------
 function Alp:unlisten(protocol)
   self.listening[protocol] = nil
   self.hosting[protocol] = nil
-  if next(self.listening) == nil then
-    self:_unlisten()
-  end
+  self:_updateListen()
 end
-
+ 
 --------------------------------------------------
 -- This will cause the event handler to poll
 -- for events, triggering callbacks for all
@@ -109,7 +117,7 @@ end
 function Alp:pullEvent()
   self.eventHandler:pullEvent()
 end
-
+ 
 --------------------------------------------------
 -- This will poll the network for hosted services.
 -- Returns a table with keys of addresses, and values
@@ -141,7 +149,7 @@ function Alp:poll(blocking, wait)
     return hosts
   end
 end
-
+ 
 -- Sort of constructor.
 function Alp:_init(eventHandler)
   local filename = "/config/alp.cfg"
@@ -160,24 +168,93 @@ function Alp:_init(eventHandler)
   end
   self.modems = { peripheral.find("modem") }
 end
-
+ 
 -- Real send method.
-function Alp:_send(src, dst, protocol, data, routing)
+function Alp:_send(src, dst, protocol, data, routing, packetGuid)
+ if packetGuid == nil then
+   packetGuid = guid.makeGuid()
+ end
  local packet = {
     alp = "1",
     src = src,
     dst = dst,
     protocol = protocol,
     data = data,
-    routing = routing
+    routing = routing,
+    guid = packetGuid
   }
   packet = textutils.serialize(packet)
-  -- TODO: Implement working loopback
+ 
+  -- Loopback, and broadcast to self.
+  if dst == self.config.address
+    or dst == "0000"
+    or dst == "ffff"
+  then
+    os.queueEvent(
+      "alp_fake_modem_message",
+      "inside",
+      2906,
+      2906,
+      packet,
+      0
+    )
+    if dst == self.config.address then
+      return
+    end
+  end
+  -- Normal transmission
   for k,modem in pairs(self.modems) do
      modem.transmit(2906, 2906, packet)
   end
 end
-
+ 
+-- Lets us know if we've already received a packet
+-- with the given guid within the past, say, 5
+-- seconds.
+function Alp:_checkDuplicatePacket(packet)
+  if not packet.guid then
+    return false
+  end
+  if self.packetGuids[packet.guid] then
+    return true
+  end
+  local currentClock = os.clock()
+  self.packetGuids[packet.guid] = currentClock
+  -- Clean up old guids when we're adding a new
+  -- one.
+  local toRemove = {}
+  for k,v in pairs(self.packetGuids) do
+    if (currentClock - v) > 5 then
+      toRemove[k] = k
+    end
+  end
+  for k,v in pairs(toRemove) do
+    self.packetGuids[k] = nil
+  end
+  return false
+end
+ 
+-- Check whether or not we should be listening.
+function Alp:_updateListen()
+  if self.isListening == nil then
+    -- check if we now need to enable
+    if next(self.listening)
+      or self.isRepeating
+    then
+      self:_listen()
+      self.isListening = true
+    end
+  else
+    -- check if we now need to disable
+    if next(self.listening) == nil
+      and self.isRepeating == nil
+    then
+      self:_unlisten()
+      self.isListening = nil
+    end
+  end
+end
+ 
 -- Set our listen handler using closures.
 function Alp:_listen()
   for k,modem in pairs(self.modems) do
@@ -197,34 +274,40 @@ function Alp:_listen()
       or not packet.dst
       or not packet.protocol
       or not packet.data
-      then
+    then
       return
     end
     if packet.alp ~= "1" then
       return
     end
-    -- Routing.
-    if this.config.routing then
-      this.addressSide[packet.src] = side
-      if not this.addressSide[packet.dst]
-        or this.addressSide[packet.dst] ~= side
-        then
-        local routing = packet.routing
-        if not routing then
-          routing = {}
-        end
-        -- Only route if we haven't routed it before
-        if not routing[config.address] then
-          routing[this.config.address] = #routing
-          this:_send(packet.src, packet.dst, packet.protocol, packet.data, routing)
-        end
+    if this:_checkDuplicatePacket(packet) then
+      return
+    end
+    -- Repeating.
+    -- Resends the packet globally, but only once
+    -- per packet. We also check duplicate packets
+    -- so that we don't repeat a packet that's
+    -- already been repeated by another repeater.
+    if this.isRepeating
+      and packet.dst ~= this.config.address
+    then
+      local routing = packet.routing
+      if not routing
+        or type(routing) ~= "table"
+      then
+        routing = {}
+      end
+      -- Only route if we haven't routed it before
+      if routing[this.config.address] == nil then
+        routing[this.config.address] = #routing
+        this:_send(packet.src, packet.dst, packet.protocol, packet.data, routing, packet.guid)
       end
     end
-    -- Acept valid addresses.
+    -- Acept only packets addressed to us.
     if packet.dst ~= this.config.address
       and packet.dst ~= "0000"
       and packet.dst ~= "ffff"
-      then
+    then
       return
     end
     -- Automatically handle polling for services.
@@ -235,13 +318,13 @@ function Alp:_listen()
     -- Pass any other packets to the callback.
     if this.listening[packet.protocol] then
       this.listening[packet.protocol](packet.src, packet.dst, packet.protocol, packet.data)
-      --os.queueEvent("alp_packet", packet.src, packet.dst, packet.protocol, packet.data)
     end
   end
   self.eventHandler:register("modem_message", listenHandler)
+  self.eventHandler:register("alp_fake_modem_message", listenHandler)
   self.handlerCallback = listenHandler
 end
-
+ 
 function Alp:_unlisten(eventHandler)
   for k,modem in pairs(self.modems) do
     modem.close(2906)
@@ -249,4 +332,3 @@ function Alp:_unlisten(eventHandler)
   self.eventHandler:unregister("modem_message", self.handlerCallback)
   self.handlerCallback = nil
 end
-

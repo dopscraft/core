@@ -1,0 +1,18 @@
+guidIncrement = 0
+ 
+function makeGuid()
+  guidIncrement = guidIncrement + 1
+  local spacer = ""
+  local compId = string.format("%5.0d", os.getComputerID())
+  local time = string.format("%5d", os.time() * 1000)
+  local day = string.format("%6d", os.day())
+  local inc = string.format("%4d", guidIncrement)
+  local guid = compId .. spacer
+    .. day .. spacer
+    .. time .. spacer
+    .. inc
+  -- For some reason the space at the end
+  -- prevents a superfluous character from being
+  -- appended.
+  return string.gsub(guid, " ", "0") .. ""
+end
