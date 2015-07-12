@@ -1,6 +1,7 @@
 apis/alp
 apis/dpm
 apis/events
+apis/guid
 apis/loader
 apis/registry
 programs/path
