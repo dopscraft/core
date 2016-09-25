@@ -1,0 +1,97 @@
+--------------------------------------------------
+-- Bridge program
+-- Packets received on one device are transmitted
+-- on the other, and vice versa.
+--------------------------------------------------
+loader.loadAPI("alp2")
+
+args = { ... }
+
+-- Return the first match in map that doesn't
+-- route to the originating device.
+-- @param dev The originating device
+-- @param addr The destination address
+-- @param map The routing map
+function findInMap(dev, addr, map)
+  for i, parts in pairs(map) do
+    if parts[2] ~= dev
+      and alp2.matchAddress(parts[1], addr)
+    then
+      return parts[2]
+    end
+  end
+end
+
+-- @param table packet
+-- @param table map
+function tryRoutePacket(packet, map)
+  local meta = packet.meta
+  local address = alp2.getAddress(packet.meta.side)
+  if meta.routedBy then
+    if meta.routedBy[address] then
+      return
+    end
+  else
+    meta.routedBy = {}
+  end
+  meta.routedBy[address] = 1
+  dest = findInMap(packet.meta.side, packet.dst, map)
+  if not dest then
+    print("No route found to " .. packet.dst)
+    return
+  end
+  alp2.sendRawPacket(
+    { dest },
+    packet.src,
+    packet.dst,
+    meta,
+    packet.data
+  )
+end
+
+-- @param table map A map of address-match-string
+-- to the device to which matches should be sent.
+function router(map)
+  alp2.openDevices(alp2.getDevices())
+  print("Routing...")
+  for i, parts in pairs(map) do
+    print(parts[1] .. " -> " .. parts[2])
+  end
+  while true do
+    sleep(0)
+    local packet = alp2.waitForRawPacket(10)
+    if packet ~= nil then
+      tryRoutePacket(packet, map)
+    end
+  end
+end
+
+function run(args)
+  if not args[1] then
+    print("alp2-routerd <file>")
+    return
+  end
+  if not fs.exists(args[1]) or fs.isDir(args[1]) then
+    print("Cannot open " .. args[1])
+    return
+  end
+  local map = {}
+  local file = fs.open(args[1], "r")
+  print("Reading routing from " .. args[1])
+  local line = file.readLine()
+  while line do
+    local parts = {}
+    for word in string.gmatch(line, "%S+") do
+      if word then
+        table.insert(parts, word)
+      end
+    end
+    if #parts > 1 then
+      table.insert(map, parts)
+    end
+    line = file.readLine()
+  end
+  file.close()
+  router(map)
+end
+run(args)

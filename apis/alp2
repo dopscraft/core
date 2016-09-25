@@ -139,7 +139,10 @@ end
 -- @return bool
 --------------------------------------------------
 function matchAddress(addr1, addr2)
-  if addr1 == addr2 then
+  if addr1 == addr2
+    or addr1 == "%"
+    or addr2 == "%"
+    then
     return true
   end
   local len1 = string.len(addr1)

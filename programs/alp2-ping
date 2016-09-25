@@ -16,6 +16,9 @@ function run()
     "This is a ping packet"
   )
   alp2.openDevices(alp2.getDevices())
+  -- todo: keep waiting for more packets for a few seconds
+  -- this lets us poll for everything with a pingd, which
+  -- helps diagnose stuff.
   local response = alp2.waitForPacket("ping.reply", 30)
   if response == nil then
     print("Timed out after 30 seconds")
