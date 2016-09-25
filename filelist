@@ -1,4 +1,5 @@
 apis/alp
+apis/alp2
 apis/dpm
 apis/events
 apis/guid
@@ -10,6 +11,12 @@ programs/server/alp-echo
 programs/alp-info
 programs/alp-ping
 programs/alp-poll
+programs/alp2-address
+programs/alp2-info
+programs/alp2-ping
+programs/alp2-pingd
+programs/alp2-repeaterd
+programs/alp2-routerd
 programs/apidoc
 programs/cat
 programs/dpm-install
