@@ -1,0 +1,12 @@
+loader.loadAPI("alp2")
+
+print("Devices on system")
+local devices = alp2.getDevices()
+for k, device in pairs(devices) do
+  local open = ""
+  if alp2.isDeviceOpen(device) then
+    open = " open"
+  end
+  print(device .. ": " .. alp2.getAddress(device) .. open)
+end
+

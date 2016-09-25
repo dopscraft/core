@@ -1,0 +1,279 @@
+--------------------------------------------------
+-- API Stuff
+--------------------------------------------------
+
+local CHANNEL_ALP2 = 9062
+
+local config = {
+  packetID = 0,
+  receivedPackets = {}
+}
+
+--------------------------------------------------
+-- @return table All attached modem side names
+--------------------------------------------------
+function getDevices()
+  local devices = {}
+  for i, device in pairs(peripheral.getNames()) do
+    if peripheral.getType(device) == "modem" then
+      table.insert(devices, device)
+    end
+  end
+  return devices
+end
+
+--------------------------------------------------
+-- @param string side
+-- @return bool
+--------------------------------------------------
+function isDeviceOpen(side)
+  return peripheral.getType(side) == "modem"
+    and peripheral.call(side, "isOpen", CHANNEL_ALP2)
+end
+
+--------------------------------------------------
+-- @return table
+--------------------------------------------------
+function getOpenDevices()
+  local devices = {}
+  for i, device in pairs(peripheral.getNames()) do
+    if isDeviceOpen(device) then
+        table.insert(devices, device)
+    end
+  end
+  return devices
+end
+
+--------------------------------------------------
+-- @param table devices Can also be string "all"
+-- @return table The devices that we opened,
+-- because they were a modem that wasn't already
+-- open.
+--------------------------------------------------
+function openDevices(devices)
+  if devices == "all" then
+    devices = getDevices()
+  end
+  local opened = {}
+  for i, device in pairs(devices) do
+    if peripheral.getType(device) == "modem"
+      and not isDeviceOpen(device)
+      then
+      peripheral.call(device, "open", CHANNEL_ALP2)
+      table.insert(opened, device)
+    end
+  end
+  return opened
+end
+
+--------------------------------------------------
+-- @param table devices
+--------------------------------------------------
+function closeDevices(devices)
+  for i, device in pairs(devices) do
+    peripheral.call(device, "close", CHANNEL_ALP2)
+  end
+end
+
+--------------------------------------------------
+-- @param mixed
+-- @return bool
+--------------------------------------------------
+local function validatePacket(packet)
+  local result = ""
+  if type(packet) ~= "table" then
+    result = "packet is not a table"
+  end
+  if type(packet.src) ~= "string" then
+    result = "invalid src"
+  end
+  if type(packet.dst) ~= "string" then
+    result = "invalid dst"
+  end
+  if type(packet.meta) ~= "table" then
+    result = "invalid meta"
+  end
+  if packet.data == nil then
+    result = "nil data"
+  end
+  return result
+end
+
+--------------------------------------------------
+-- @param string side
+--------------------------------------------------
+function getAddress(side)
+  if config.sideAddress and config.sideAddress[side] then
+    return config.sideAddress[side]
+  end
+  if config.globalAddress then
+    return config.globalAddress
+  end
+  local default = tostring(os.getComputerID())
+  local pad = math.max(1, 4 - string.len(default))
+  default = string.rep("0", pad) .. default
+  return "default." .. default
+end
+
+--------------------------------------------------
+-- @param string address
+-- @param string|nil side
+--------------------------------------------------
+function setAddress(address, side)
+  if side then
+    config.sideAddress[side] = address
+    return
+  end
+  config.globalAddress = address
+end
+
+--------------------------------------------------
+-- Returns true if the given addresses match.
+-- If any address ends ends in *, then we only
+-- compare addresses before that point.
+-- This lets us send to "ournetwork.*" and have
+-- all hosts on the network accept the packet, or
+-- we can listen with a wildcard to do routing.
+-- @param string addr1
+-- @param string addr2
+-- @return bool
+--------------------------------------------------
+function matchAddress(addr1, addr2)
+  if addr1 == addr2 then
+    return true
+  end
+  local len1 = string.len(addr1)
+  local wild1 = string.find(addr1, "%%")
+  if wild1 then
+    len1 = math.min(len1, wild1 - 1)
+  end
+  local len2 = string.len(addr2)
+  local wild2 = string.find(addr2, "%%")
+  if wild2 then
+    len2 = math.min(len2, wild2 - 1)
+  end
+  local len = math.min(len1, len2)
+  addr1 = string.sub(addr1, 1, len)
+  addr2 = string.sub(addr2, 1, len)
+  return addr1 == addr2
+end
+
+--------------------------------------------------
+-- @param table devices
+-- @param string source
+-- @param string dest
+-- @param table meta
+-- @param mixed data
+--------------------------------------------------
+function sendRawPacket(devices, source, dest, meta, data)
+  local packet = {
+    src = source,
+    dst = dest,
+    meta = meta,
+    data = data
+  }
+  local validation = validatePacket(packet)
+  if validation ~= "" then
+    error("Invalid packet to send: " .. validation)
+  end
+  packet = textutils.serialize(packet)
+  local openedDevices = openDevices(devices)
+  for i, device in pairs(getOpenDevices()) do
+    peripheral.call(device, "transmit", CHANNEL_ALP2, CHANNEL_ALP2, packet)
+  end
+  closeDevices(openedDevices)
+end
+
+--------------------------------------------------
+-- @param table devices
+-- @param string protocol
+-- @param string dest
+-- @param mixed data
+-- @return int The packet ID we sent
+--------------------------------------------------
+function sendPacket(devices, protocol, dest, data)
+  if devices == "all" then
+    devices = getDevices()
+  end
+  config.packetID = config.packetID + 1
+  for i, device in pairs(devices) do
+    local source = getAddress(device)
+    local meta = {
+      packetID = config.packetID,
+      protocol = protocol
+    }
+    sendRawPacket({ device }, source, dest, meta, data)
+  end
+  return config.packetID
+end
+
+--------------------------------------------------
+-- @param string dest Destination address filter
+-- @param number time
+-- @return table|nil Packet
+--------------------------------------------------
+function waitForRawPacket(time)
+  local myTimer = os.startTimer(time)
+  while (true) do
+    local event, side, freq, rfreq, message, dist = os.pullEvent()
+    if event == "timer" and side == myTimer then
+      return nil
+    end
+    if (event == "modem_message") then
+      local packet = textutils.unserialize(message)
+        if validatePacket(packet) == "" then
+          packet.meta.side = side
+          return packet
+        end
+    end
+  end
+end
+
+--------------------------------------------------
+-- @return table|nil Packet
+--------------------------------------------------
+function waitForPacket(protocol, time)
+  local startTime = os.clock()
+  local endTime = startTime + time
+  while os.clock() - startTime < time do
+    local packet = waitForRawPacket(endTime - os.clock())
+    if packet then
+      local address = getAddress(packet.meta.side)
+      if matchAddress(address, packet.dst)
+        and not checkReceived(packet.src .. "." .. packet.meta.packetID)
+        and packet.meta.protocol == protocol
+      then
+        setReceived(packet.src .. "." .. packet.meta.packetID)
+        return packet
+      end
+    end
+  end
+end
+
+--------------------------------------------------
+-- @param string id
+-- @return bool True if the packet has already
+-- been received, else false.
+--------------------------------------------------
+function checkReceived(id)
+  return config.receivedPackets[id] ~= nil
+end
+
+--------------------------------------------------
+-- @param string id
+--------------------------------------------------
+function setReceived(id)
+  config.receivedPackets[id] = os.clock()
+  local cutoff = os.clock() - 3
+  local toRemove = {}
+  for id, time in pairs(config.receivedPackets) do
+    if time < cutoff then
+      toRemove[id] = time
+    end
+  end
+  for id, time in pairs(toRemove) do
+    config.receivedPackets[id] = nil
+  end
+end
+
+

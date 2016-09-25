@@ -1,0 +1,28 @@
+loader.loadAPI("alp2")
+
+args = { ... }
+
+function run()
+  if not args[1] then 
+    print("alp2-ping <address>")
+    return
+  end
+  print("Pinging " .. args[1])
+  local startTime = os.clock()
+  alp2.sendPacket(
+    alp2.getDevices(),
+    "ping.transmit",
+    args[1],
+    "This is a ping packet"
+  )
+  alp2.openDevices(alp2.getDevices())
+  local response = alp2.waitForPacket("ping.reply", 30)
+  if response == nil then
+    print("Timed out after 30 seconds")
+    return
+  end
+  local timeTaken = os.clock() - startTime
+  print("Reply from " .. response.src .. " after " .. timeTaken .. " seconds")
+end
+run()
+

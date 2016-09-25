@@ -1,0 +1,18 @@
+loader.loadAPI("alp2")
+
+args = { ... }
+
+function help()
+  print("alp2-addr <address> [ <side> ]")
+  print("Set the address globally or for a given side")
+end
+
+function run()
+  if not args[1] then
+    help()
+    return
+  end
+  alp2.setAddress(args[1], args[2])
+  end
+end
+run()

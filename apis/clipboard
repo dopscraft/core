@@ -2,6 +2,10 @@
 Clipboard
 Intended for transient, user-invoked cross-program
 data storage.
+
+TODO: Implement copy cut methods.
+To return, we'd have to wrap all the data in a table so that when we retreive
+it we return a consistent state, i.e. so that the metadata matches the data.
 ]]
  
 clipboard = {}
