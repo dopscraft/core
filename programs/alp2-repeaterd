@@ -1,0 +1,55 @@
+--------------------------------------------------
+-- Repeater program
+-- Repeats every packet it receives which it
+-- hasn't already routed.
+-- This helps extend the range of wireless comms.
+--------------------------------------------------
+loader.loadAPI("alp2")
+
+args = { ... }
+
+local devices = {}
+for i, device in pairs(args) do
+  table.insert(devices, device)
+end
+
+function tryRepeat(packet)
+  local meta = packet.meta
+  local address = alp2.getAddress(packet.meta.side)
+  if meta.routedBy then
+    if meta.routedBy[address] then
+      return
+    end
+  else
+    meta.routedBy = {}
+  end
+  meta.routedBy[address] = 1
+  alp2.sendRawPacket(
+    { packet.meta.side },
+    packet.src,
+    packet.dst,
+    meta,
+    packet.data
+  )
+end
+
+function repeater(devices)
+  alp2.openDevices(devices)
+  print("Repeating")
+  while true do
+    sleep(0)
+    local packet = alp2.waitForRawPacket(10)
+    if packet ~= nil then
+      tryRepeat(packet)
+    end
+  end
+end
+
+function run(devices)
+  if #devices < 1 then
+    print("alp2-repeaterd <device> [ <device> [ ... ] ]")
+    return
+  end
+  repeater(devices)
+end
+run(devices)
