@@ -1,0 +1,32 @@
+loader.loadAPI("alp2")
+
+--------------------------------------------------
+-- @param string psend Send protocol
+-- @param string preceive Receive protocol
+-- @param string address
+-- @param number timeout
+-- @param function callback
+-- @param mixed payload
+-- called with (address, data, time)
+--------------------------------------------------
+function ping(psend, preceive, address, timeout, callback, payload)
+  if payload == nil then
+    payload = 0
+  end
+  local startTime = os.clock()
+  alp2.openDevices(alp2.getDevices())
+  alp2.sendPacket(
+    alp2.getDevices(),
+    psend,
+    address,
+    payload
+  )
+  while os.clock() - startTime < timeout do
+    local wait = startTime + timeout - os.clock()
+    local response = alp2.waitForPacket(preceive, wait)
+    if response ~= nil then
+      local timeTaken = os.clock() - startTime
+      callback(response.src, response.data, timeTaken)
+    end
+  end
+end

@@ -1,44 +1,36 @@
 loader.loadAPI("alp2")
+loader.loadAPI("alp2tools")
 
 args = { ... }
+
+local gotReply
+
+function callback(address, data, time)
+  gotReply = true
+  print("Reply from " .. address .. " after " .. time .. " seconds")
+end
 
 function run()
   if not args[1] then 
     print("alp2-ping <address> [ <timeout> [ <protocol> ] ]")
     return
   end
-  print("Pinging " .. args[1])
-  local startTime = os.clock()
+  local address = args[1]
+  local timeout = 3
+  if args[2] then timeout = args[2] end
   local protocol = "ping"
-  if args[3] then
-    protocol = args[3]
-  end
-  alp2.sendPacket(
-    alp2.getDevices(),
-    protocol .. ".transmit",
-    args[1],
-    "PING!"
+  if args[3] then protocol = args[3] end
+  print("Pinging " .. address .. " (timeout " .. timeout .. ")")
+  alp2tools.ping(
+    protocol,
+    protocol .. ".reply",
+    address,
+    timeout,
+    callback,
+    "ping"
   )
-  alp2.openDevices(alp2.getDevices())
-  -- now wait a while for some responses
-  local timeout = 4
-  if args[2] then
-    timeout = 0 + args[2]
-  end
-  local gotReply = false
-  while os.clock() - startTime < timeout do
-    local wait = startTime + timeout - os.clock()
-    local response = alp2.waitForPacket(protocol .. ".reply", wait)
-    if response ~= nil then
-      local timeTaken = os.clock() - startTime
-      print("Reply from " .. response.src .. " after " .. timeTaken .. " s:")
-      print(string.sub(response.data, 1, 50))
-      gotReply = true
-    end
-  end
   if not gotReply then
-    local timeTaken = os.clock() - startTime
-    print("No reponse after " .. timeTaken .. " seconds")
+    print("No response")
   end
 end
 run()
