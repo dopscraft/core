@@ -13,6 +13,5 @@ function run()
     return
   end
   alp2.setAddress(args[1], args[2])
-  end
 end
 run()
