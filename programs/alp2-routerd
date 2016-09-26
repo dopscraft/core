@@ -15,6 +15,7 @@ args = { ... }
 function findInMap(dev, addr, map)
   for i, parts in pairs(map) do
     if parts[2] ~= dev
+      and alp2.isDeviceOpen(parts[2])
       and alp2.matchAddress(parts[1], addr)
     then
       return parts[2]
