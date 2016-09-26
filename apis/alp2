@@ -233,16 +233,25 @@ function waitForRawPacket(time)
 end
 
 --------------------------------------------------
+-- @param string protocol Filter packets not sent
+-- with this protocol
+-- @param number time How long to wait, maximum.
+-- @param bool wildcard If true, accept addresses
+-- that use the %, otherwise don't.
 -- @return table|nil Packet
 --------------------------------------------------
-function waitForPacket(protocol, time)
+function waitForPacket(protocol, time, wildcard)
   local startTime = os.clock()
   local endTime = startTime + time
   while os.clock() - startTime < time do
     local packet = waitForRawPacket(endTime - os.clock())
     if packet then
       local address = getAddress(packet.meta.side)
-      if matchAddress(address, packet.dst)
+      local match = address == packet.dst
+      if wildcard then
+        match = matchAddress(address, packet.dst)
+      end
+      if match
         and not checkReceived(packet.src .. "." .. packet.meta.packetID)
         and packet.meta.protocol == protocol
       then

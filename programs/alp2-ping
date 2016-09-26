@@ -4,7 +4,7 @@ args = { ... }
 
 function run()
   if not args[1] then 
-    print("alp2-ping <address>")
+    print("alp2-ping <address> <timeout>")
     return
   end
   print("Pinging " .. args[1])
