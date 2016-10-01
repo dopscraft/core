@@ -30,3 +30,26 @@ function ping(psend, preceive, address, timeout, callback, payload)
     end
   end
 end
+
+--------------------------------------------------
+-- Takes a packet's metadata and either returns
+-- a modified copy, or nil if we cannot route this
+-- packet.
+-- Used by alp2-routerd and alp2-repeaterd
+-- @param table meta
+--------------------------------------------------
+function routePacketMeta(meta)
+  local address = alp2.getAddress(meta.side)
+  if meta.routedBy and meta.routedBy[address] then
+    return nil
+  end
+  local new = {}
+  for k,v in pairs(meta) do
+    new[k] = v
+  end
+  if not new.routedBy then
+    new.routedBy = {}
+  end
+  new.routedBy[address] = 1
+  return new  
+end

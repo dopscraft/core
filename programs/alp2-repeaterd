@@ -37,7 +37,6 @@ function repeater(devices)
   alp2.openDevices(devices)
   print("Repeating")
   while true do
-    sleep(0)
     local packet = alp2.waitForRawPacket(10)
     if packet ~= nil then
       tryRepeat(packet)

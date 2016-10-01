@@ -3,7 +3,6 @@ loader.loadAPI("alp2")
 alp2.openDevices(alp2.getDevices())
 print("Listening")
 while true do
-  sleep(0)
   local packet = alp2.waitForPacket("ping", 10, true)
   if packet ~= nil then
     print("Packet from " .. packet.src)

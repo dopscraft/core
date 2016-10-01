@@ -4,6 +4,7 @@
 -- on the other, and vice versa.
 --------------------------------------------------
 loader.loadAPI("alp2")
+loader.loadAPI("alp2tools")
 
 args = { ... }
 
@@ -26,21 +27,28 @@ end
 -- @param table packet
 -- @param table map
 function tryRoutePacket(packet, map)
-  local meta = packet.meta
-  local address = alp2.getAddress(packet.meta.side)
-  if meta.routedBy then
-    if meta.routedBy[address] then
-      return
-    end
-  else
-    meta.routedBy = {}
+  local meta = alp2tools.routePacketMeta(packet.meta)
+  if not meta then
+    return
   end
-  meta.routedBy[address] = 1
+  local address = alp2.getAddress(packet.meta.side)
+  if packet.dst == address
+    or packet.src == address
+  then
+    return
+  end
   dest = findInMap(packet.meta.side, packet.dst, map)
   if not dest then
     print("No route found to " .. packet.dst)
     return
   end
+  print(
+    packet.meta.protocol
+    .. " packet from "
+    .. packet.src
+    .. " for "
+    .. packet.dst
+  )
   alp2.sendRawPacket(
     { dest },
     packet.src,
@@ -59,7 +67,6 @@ function router(map)
     print(parts[1] .. " -> " .. parts[2])
   end
   while true do
-    sleep(0)
     local packet = alp2.waitForRawPacket(10)
     if packet ~= nil then
       tryRoutePacket(packet, map)
